@@ -1,109 +1,110 @@
-# Spring Boot Library Management Assignment
+# Assignment: Spring Boot Application for Library Tracking
 
-**Student Name:** MD Kaif Molla
-**Roll No:** 2024eb02411
-**Github URL:** https://github.com/WhySeriousKaif/library-management-assignment
+**Student Profile:** MD Kaif Molla  
+**Institutional Roll:** 2024eb02411  
+**Source Code Repository:** https://github.com/WhySeriousKaif/library-management-assignment  
 
-## 1. Entity Relationship Design
+---
 
-For this assignment, I chose to implement a Library Management System focusing on two entities: `Author` and `Book`.
+## Part I: Database Schema and Architecture
 
-- **Relationship**: One-to-Many (`@OneToMany` and `@ManyToOne`). An Author can have multiple Books, but each Book belongs to only one Author.
-- **Constraints**: 
-  - `Author`: `id` (Primary Key), `name` (Not Null), `email` (Not Null).
-  - `Book`: `id` (Primary Key), `title` (Not Null), `isbn` (Unique, Not Null), `author_id` (Foreign Key).
+In order to meet the project requirements, I selected a publishing domain, specifically managing the linkage between a `Book` and its `Author`. 
 
-This is represented using JPA annotations in Spring Boot:
+* **Structural Relationship**: I established a one-to-many cardinality. Naturally, a single author writes many books, while each book in this system is mapped to precisely one primary author.
+* **JPA Annotations utilized**:
+  - The author side uses `@OneToMany(mappedBy = "author")` to keep track of the collection of books.
+  - The book side uses `@ManyToOne` along with a `@JoinColumn` to enforce the foreign key constraint.
+
+Here is a snippet showing how I mapped these entities in the code:
 ```java
-// In Author.java
+// Inside the Author entity
 @OneToMany(mappedBy = "author", cascade = CascadeType.ALL, fetch = FetchType.LAZY)
 private List<Book> books = new ArrayList<>();
 
-// In Book.java
+// Inside the Book entity
 @ManyToOne(fetch = FetchType.LAZY, optional = false)
 @JoinColumn(name = "author_id", nullable = false)
 private Author author;
 ```
 
-## 2. Implementation Details
+## Part II: Execution of Core Features
 
-### A. Populate Database
-The application uses an H2 in-memory database. A `CommandLineRunner` bean in the main `Application` class executes on startup to populate 10 authors and 10 books.
+### 1. Seeding the H2 Database
+Instead of relying on manual data entry for testing, I configured a `CommandLineRunner` that acts as an initialization script. Upon booting the server, it automatically injects a predefined list of 10 authors and 10 associated books directly into the tables.
 
 ```java
 @Bean
-public CommandLineRunner loadData(AuthorRepository authorRepository, BookRepository bookRepository) {
+public CommandLineRunner initializeDatabase(AuthorRepository authorRepo, BookRepository bookRepo) {
     return (args) -> {
-        if (authorRepository.count() == 0) {
-            // Authors and Books initialization...
+        if (authorRepo.count() == 0) {
+            // Logic to persist dummy authors and books goes here
         }
     };
 }
 ```
 
-### B. Create Operation
-A JSP page `create.jsp` contains a form to add a new book and select its author. The controller handles the form submission using `@ModelAttribute` and calls the `LibraryService` to save the data. Exception handling prevents duplicate ISBNs.
+### 2. The "Create" Workflow
+To allow users to register new literature, I designed a JSP view (`create.jsp`). When the user submits this HTML form, it triggers a POST mapping in the controller. The controller delegates the persistence to the service layer. If constraints (like a duplicate ISBN) are violated, the exception is caught, and the user is redirected back to the form with a descriptive error alert.
 
 ```java
 @PostMapping("/create")
-public String createBook(@ModelAttribute Book book, Model model) {
+public String handleBookCreation(@ModelAttribute Book newBook, Model uiModel) {
     try {
-        libraryService.saveBook(book);
+        libraryService.saveBook(newBook);
         return "redirect:/";
-    } catch (Exception e) {
-        model.addAttribute("error", "Error creating book: " + e.getMessage());
-        model.addAttribute("authors", libraryService.getAllAuthors());
+    } catch (Exception ex) {
+        uiModel.addAttribute("error", "Failed to add book: " + ex.getMessage());
+        uiModel.addAttribute("authors", libraryService.getAllAuthors());
         return "create";
     }
 }
 ```
 
-### C. Read Operation
-The index page `list.jsp` lists all books. The data is fetched using a custom JPQL query in `BookRepository` that performs an inner join with the `Author` table.
+### 3. The "Read" Workflow
+Displaying the data efficiently requires fetching both the books and their respective authors simultaneously. To prevent the notorious N+1 query problem, I bypassed standard JPA methods and wrote a bespoke HQL query employing an inner join fetch mechanism.
 
 ```java
-// BookRepository.java
+// Inside BookRepository.java
 @Query("SELECT b FROM Book b JOIN FETCH b.author")
-List<Book> findAllBooksWithAuthors();
+List<Book> retrieveAllBooksWithAuthorDetails();
 ```
 
-### D. Update Operation
-Clicking "Edit" on a book navigates to `update.jsp` containing a pre-filled form. The form submission updates the entity via the `saveBook` service method.
+### 4. The "Update" Workflow
+When a user decides to modify an existing entry, they are navigated to `update.jsp` where the inputs are pre-populated with the target book's current metadata. Upon saving, the changes overwrite the old values in the database.
 
 ```java
 @PostMapping("/update")
-public String updateBook(@ModelAttribute Book book, Model model) {
+public String handleBookUpdate(@ModelAttribute Book updatedBook, Model uiModel) {
     try {
-        libraryService.saveBook(book);
+        libraryService.saveBook(updatedBook);
         return "redirect:/";
-    } catch (Exception e) {
-        // Handle constraint violations
+    } catch (Exception ex) {
         return "update";
     }
 }
 ```
 
-## 3. Testing
+## Part III: Quality Assurance and Testing
 
-Unit tests were written using **JUnit 5** and **Mockito**:
-- `BookRepositoryTest`: Tested the custom query using `@DataJpaTest`.
-- `LibraryServiceTest`: Tested business logic and mock interactions with the repositories.
+To ensure robust business logic, I integrated **JUnit 5** and **Mockito** for comprehensive testing:
+- **Repository Testing**: The custom `JOIN FETCH` query was validated using the `@DataJpaTest` slice.
+- **Service Testing**: `LibraryServiceTest` verifies behavior in isolation by mocking the underlying data repositories.
 
-All operations were also tested manually in the browser.
+Furthermore, I conducted end-to-end manual checks via the browser interface to validate form submissions and UI behavior.
 
-## 4. Screenshots
+## Part IV: Visual Evidence
 
-**Screenshot 1: List of Books (Read Operation)**
+**Screenshot 1: The Main Dashboard (Viewing Data)**
 ![List of Books](list.png)
 
-**Screenshot 2: Add New Book Form (Create Operation)**
+**Screenshot 2: The Registration Interface (Adding Data)**
 ![Create Book](create.png)
 
-**Screenshot 3: Edit Book Form (Update Operation)**
+**Screenshot 3: The Modification Interface (Editing Data)**
 ![Update Book](update.png)
 
-## 5. Challenges Faced
+## Part V: Technical Roadblocks & Resolutions
 
-1. **JSP Rendering in Spring Boot**: Modern Spring Boot favors Thymeleaf over JSP. Configuring Tomcat Embed Jasper required ensuring correct dependency scope (`tomcat-embed-jasper` and JSTL) and defining view resolvers in `application.properties`.
-2. **Inner Join vs Cartesian Product**: Initially, reading books without a JOIN caused the N+1 select problem. Solving this required writing a custom `@Query` using `JOIN FETCH` to eagerly load authors efficiently.
-3. **Database Constraints Handling**: Handling unique constraint violations (like duplicate ISBN) during the Create/Update forms gracefully without crashing the app required using `try-catch` blocks in the controllers and displaying error messages to the view layer.
+1. **JSP Integration Complexity**: While Spring Boot naturally integrates with Thymeleaf, routing to traditional JSPs required a deeper dive into application properties (setting up prefixes and suffixes) and adding the `tomcat-embed-jasper` dependency to compile the templates at runtime.
+2. **Query Optimization**: Naively calling `findAll()` on the book repository resulted in excessive independent database calls to fetch the associated authors. I mitigated this bottleneck by implementing an explicit `JOIN FETCH` query, successfully reducing the operation to a single SQL statement.
+3. **Graceful Error Handling**: Database integrity errors (such as attempting to save a non-unique ISBN) initially crashed the application with a 500 status. I resolved this by wrapping the service calls in a `try-catch` block within the controller, allowing me to pass the exception message dynamically back to the user interface.
